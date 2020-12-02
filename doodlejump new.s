@@ -60,7 +60,10 @@
     characterY:     .word 0
 
     # Platforms
-
+    platformColour:         .word 0xffffff # white
+    minNumOfPlatforms:      .word 18
+    maxNumOfPlatforms:      .word 42
+    platformPixelCounter:   .word 0
     
 .text
 
@@ -77,12 +80,21 @@ main:
     add $a2, $a2, $gp # add display address
     add $a0, $gp, $0 # loop counter
 
+    lw $t0, platformColour
+
 fillLoop:
-    beq $a0, $a2, init
+    beq $a0, $a2, clearRegisters
+    beq $a0, $t0, increasePlatformCounter
     sw $a1, 0($a0) # colours pixel
     addi $a0, $a0, 4 # increase counter
     j fillLoop
 
+# NEEDS FUCKING TESTING 
+increasePlatformCounter:
+    lw $t1, platformPixelCounter
+    addi $t1, $t1, 1
+    sw $t1, platformPixelCounter
+    jr $ra
 
 clearRegisters:
     li $v0, 0
@@ -144,8 +156,14 @@ drawCharacter:
     lw $a1, characterColour # set a1 to character colour
     jal drawPixel # draws colour at a0
 
-drawPlatform:
 
+checkNumberOfPlatforms:
+    lw $t0, platformPixelCounter
+    lw $t1, minNumOfPlatforms
+    bge $t0, $t1, checkInput
+
+drawPlatform:
+    
 
         
 checkInput:
@@ -229,55 +247,6 @@ moveCharacterRight:
 
 exitCheckValidDirection:
     jr $ra
-
-##################################################################
-# Check Platform Collision
-# $a0 = snakeHeadPositionX
-# $a1 = snakeHeadPositionY
-# returns $v0:
-#	0 = did not touch platform
-#	1 = did hit platform
-# CheckFruitCollision:
-	
-# 	#get fruit coordinates
-# 	lw $t0, fruitPositionX
-# 	lw $t1, fruitPositionY
-# 	#set $v0 to zero, to default to no collision
-# 	add $v0, $zero, $zero	
-# 	#check first to see if x is equal
-# 	beq $a0, $t0, XEqualFruit
-# 	#if not equal end function
-# 	j ExitCollisionCheck
-	
-# XEqualFruit:
-# 	#check to see if the y is equal
-# 	beq $a1, $t1, YEqualFruit
-# 	#if not eqaul end function
-# 	j ExitCollisionCheck
-# YEqualFruit:
-# 	#update the score as fruit has been eaten
-# 	lw $t5, score
-# 	lw $t6, scoreGain
-# 	add $t5, $t5, $t6
-# 	sw $t5, score
-# 	# play sound to signify score update
-# 	li $v0, 31
-# 	li $a0, 79
-# 	li $a1, 150
-# 	li $a2, 7
-# 	li $a3, 127
-# 	syscall	
-	
-# 	li $a0, 96
-# 	li $a1, 250
-# 	li $a2, 7
-# 	li $a3, 127
-# 	syscall
-	
-# 	li $v0, 1 #set return value to 1 for collision
-	
-# ExitCollisionCheck:
-# 	jr $ra
 
 #########################################################
 # Pauses game
