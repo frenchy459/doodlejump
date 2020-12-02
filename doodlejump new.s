@@ -29,7 +29,7 @@
 
     # Screen
     screenWidth:    .word 32
-    screenHeight:   .word 64
+    screenHeight:   .word 32
 
     # Colours
     characterColour:    .word  0x0066cc # blue
@@ -53,10 +53,10 @@
     # kPressed: .word 107
 
     # Character info
-    Ydirection:     .word -1 # starts with character falling
-    # -1 for falling
-    # 1 for jumping
-    Xdirection:     .word 107 # starts with character going right
+    Ydirection:     .word 1 # starts with character falling
+    # 1 for falling
+    # -1 for jumping
+    #Xdirection:     .word 107 # starts with character going right
     # 106 (j) for left
     # 107 (k) for right
     characterX:     .word 0
@@ -68,17 +68,28 @@
 .text
 
 main: 
+    
+    li $v0, 32
+    addi $a0, $0, 1000
+    syscall
+
     lw $a0, screenWidth
     lw $a1, backgroundColour
-    mul $a2, $a0, 64 # total number of pixels on screen 
+    mul $a2, $a0, 32 # total number of pixels on screen 
     mul $a2, $a2, 4
     add $a2, $a2, $gp # add display address
     add $a0, $gp, $0 # loop counter
+
+#####################
+# ADD BELOW BACK WHEN GETTING FUCKING CHARACTER TO MOVE
 fillLoop:
     beq $a0, $a2, init
     sw $a1, 0($a0) # colours pixel
     addi $a0, $a0, 4 # increase counter
     j fillLoop
+# ADD ABOVE BACK WHEN GETTING FUCKING CHARACTER TO MOVE
+#####################
+
 
 # Start: 
 #     beq $t0, $0, Exit
@@ -92,10 +103,6 @@ fillLoop:
 
 
 init:
-    li $t0, 4
-    sw $t0, characterX
-    li $t0, 10
-    sw $t0, characterY
     sw $0, score
 
 clearRegisters:
@@ -122,11 +129,9 @@ clearRegisters:
 
 
 #########################################################
-# Draw character
-# just draws 5x5 square that will act as character for now
+# Draws character
 
 drawCharacter:
-    
     
     lw $a0, characterX # load x coord
     lw $a1, characterY # load y coord
@@ -195,31 +200,46 @@ drawPlatform:
 #         addi $t2, $t2, 4
 #         j loopClearBackground
         
+checkInput:
 
-# checkInput:
-#     lw $t1, 0xffff0004
-#     lw $t2, jPressed
-#     lw $t3, kPressed
+    #addi $a0, $a0, 1
+	#jal pause
 
-#     beq $t1, $t2, moveLeft
-#     beq $t1, $t3, moveRight
+    lw $a0, characterX
+	lw $a1, characterY
+	# jal convertCoordToAddress
+    # add $a2, $v0, $zero 
 
-#     j Start
+    li $t0, 0xffff0000
+    lw $t1, ($t0)
+    andi $t1, $t1, 0x0001
+	beqz $t1, selectDrawDirection # if no new input, draw up or down
+	#lw $a1, 4($t0) #store direction based on input
+    
+checkDirection:
+    #lw $a0, Xdirection
+    lw $a1, Ydirection
+    jal checkValidDirection
+    sw $a1, Ydirection
 
-#     moveLeft:
-#         subi $a1, $a1, 1
-#         #move $v0, $0
-#         #sw 0xffff0004, $0
-#         j Start
-        
-   
-#     moveRight:
-#     	addi $a1, $a1, 1
-#     	move $v0, $0
-#         #sw 0xffff0004, $0
-#     	j Start
-        
-        
+selectDrawDirection:
+    lw $t6, Ydirection
+    beq $t6, -1, decreaseYCoord
+    beq $t6, 1, increaseYCoord
+    j checkInput
+
+decreaseYCoord:
+    lw $a0, characterY
+    subi $a0, $a0, 1
+    sw $a0, characterY
+    j main
+
+increaseYCoord:
+    lw $a0, characterY
+    addi $a0, $a0, 1
+    sw $a0, characterY
+    j main
+    
 #########################################################
 # Draw function
 # a0 = address of pixel
@@ -244,15 +264,44 @@ convertCoordToAddress:
 	jr $ra			# return $v0
 
 
-#########################################################
-# Pauses game
-# a0 = amount to pause
-# return: null
-pause:
-    li $v0, 10 # terminate the program gracefully
-    syscall
-    jr $ra
 
+
+#########################################################
+# checks direction of character
+# a0 = current X direction
+# a1 = current Y direction
+# a2 = input
+# a3 = coordinates of direction change if acceptable
+checkValidDirection:
+    #beq $a0, $a2, sameDirection
+    beq $a0, 106, validDirection
+    beq $a0, 107, validDirection
+    j exitCheckValidDirection
+
+# sameDirection:
+#     li $v0, 1
+#     j exitCheckValidDirection
+
+validDirection:
+    li $v0, 1
+    beq $a2, 106, storeLeftDirection
+    beq $a2, 107, storeRightDirection
+    j exitCheckValidDirection
+
+storeLeftDirection:
+    lw $t0, characterX
+    subi $t0, $t0, 1
+    sw $t0, characterX
+    j exitCheckValidDirection
+
+storeRightDirection:
+    lw $t0, characterX
+    addi $t0, $t0, 1
+    sw $t0, characterX
+    j exitCheckValidDirection
+
+exitCheckValidDirection:
+    jr $ra
 
 ##################################################################
 # Check Platform Collision
@@ -261,44 +310,53 @@ pause:
 # returns $v0:
 #	0 = did not touch platform
 #	1 = did hit platform
-CheckFruitCollision:
+# CheckFruitCollision:
 	
-	#get fruit coordinates
-	lw $t0, fruitPositionX
-	lw $t1, fruitPositionY
-	#set $v0 to zero, to default to no collision
-	add $v0, $zero, $zero	
-	#check first to see if x is equal
-	beq $a0, $t0, XEqualFruit
-	#if not equal end function
-	j ExitCollisionCheck
+# 	#get fruit coordinates
+# 	lw $t0, fruitPositionX
+# 	lw $t1, fruitPositionY
+# 	#set $v0 to zero, to default to no collision
+# 	add $v0, $zero, $zero	
+# 	#check first to see if x is equal
+# 	beq $a0, $t0, XEqualFruit
+# 	#if not equal end function
+# 	j ExitCollisionCheck
 	
-XEqualFruit:
-	#check to see if the y is equal
-	beq $a1, $t1, YEqualFruit
-	#if not eqaul end function
-	j ExitCollisionCheck
-YEqualFruit:
-	#update the score as fruit has been eaten
-	lw $t5, score
-	lw $t6, scoreGain
-	add $t5, $t5, $t6
-	sw $t5, score
-	# play sound to signify score update
-	li $v0, 31
-	li $a0, 79
-	li $a1, 150
-	li $a2, 7
-	li $a3, 127
-	syscall	
+# XEqualFruit:
+# 	#check to see if the y is equal
+# 	beq $a1, $t1, YEqualFruit
+# 	#if not eqaul end function
+# 	j ExitCollisionCheck
+# YEqualFruit:
+# 	#update the score as fruit has been eaten
+# 	lw $t5, score
+# 	lw $t6, scoreGain
+# 	add $t5, $t5, $t6
+# 	sw $t5, score
+# 	# play sound to signify score update
+# 	li $v0, 31
+# 	li $a0, 79
+# 	li $a1, 150
+# 	li $a2, 7
+# 	li $a3, 127
+# 	syscall	
 	
-	li $a0, 96
-	li $a1, 250
-	li $a2, 7
-	li $a3, 127
-	syscall
+# 	li $a0, 96
+# 	li $a1, 250
+# 	li $a2, 7
+# 	li $a3, 127
+# 	syscall
 	
-	li $v0, 1 #set return value to 1 for collision
+# 	li $v0, 1 #set return value to 1 for collision
 	
-ExitCollisionCheck:
-	jr $ra
+# ExitCollisionCheck:
+# 	jr $ra
+
+#########################################################
+# Pauses game
+# a0 = amount to pause
+# return: null
+pause:
+    li $v0, 32 # terminate the program gracefully
+    syscall
+    jr $ra
