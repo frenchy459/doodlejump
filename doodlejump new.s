@@ -33,8 +33,8 @@
 
     # Colours
     characterColour:    .word  0x0066cc # blue
-    #backgroundColour:   .word  0xff0000 # black
-    backgroundColour:   .word  0xcc6611 # orange
+    backgroundColour:   .word  0x000000 # black
+    # backgroundColour:   .word  0xcc6611 # orange
 
     # Game info
     #continue:   .byte 0x1 # 0 to end game, 1 to keep running game loop (Start)
@@ -56,9 +56,6 @@
     Ydirection:     .word 1 # starts with character falling
     # 1 for falling
     # -1 for jumping
-    #Xdirection:     .word 107 # starts with character going right
-    # 106 (j) for left
-    # 107 (k) for right
     characterX:     .word 0
     characterY:     .word 0
 
@@ -70,7 +67,7 @@
 main: 
     
     li $v0, 32
-    addi $a0, $0, 1000
+    addi $a0, $0, 200
     syscall
 
     lw $a0, screenWidth
@@ -80,30 +77,12 @@ main:
     add $a2, $a2, $gp # add display address
     add $a0, $gp, $0 # loop counter
 
-#####################
-# ADD BELOW BACK WHEN GETTING FUCKING CHARACTER TO MOVE
 fillLoop:
     beq $a0, $a2, init
     sw $a1, 0($a0) # colours pixel
     addi $a0, $a0, 4 # increase counter
     j fillLoop
-# ADD ABOVE BACK WHEN GETTING FUCKING CHARACTER TO MOVE
-#####################
 
-
-# Start: 
-#     beq $t0, $0, Exit
-#     lw $a0, displayAddress # a0 stores the base address for display
-#     #jal clearScreen
-# exitClearScreen:
-#     jal drawCharacter
-# exitDrawCharacter:
-#     jal checkInput
-#     move $t0, $v0
-
-
-init:
-    sw $0, score
 
 clearRegisters:
     li $v0, 0
@@ -168,62 +147,22 @@ drawCharacter:
 drawPlatform:
 
 
-    # move $t2, $0
-
-    # addi $t1, $0, 4
-    # mul $t6, $a1, $t1
-    # #lw $t1, screenWidth
-    # addi $t1, $0, 256
-
-    # mul $t2, $t1, $a2 # does t2 = y * screenWidth
-    # add $t2, $t2, $t6 # does t2 += x
-    # add $t2, $t2, $a0 # does t2 += dispalyAddress
-
-    # lw $t1, characterColour # load character colour into $t1
-
-    # # t3 = counter for y value
-    # # t4 = counter for x value
-    # # t5 = stores value of 5 since character is 5x5 square
-    # addi $t5, $0, 5 # t5 = 5
-    # move $t3, $0 # t3 = 0
-    # move $t4, $0 # t4 = 0
-
-
-# clearScreen:
-#     # lw $t1, backgroundColour # t1 stores colour black
-#     move $t2, $a0 # t2 is location pointer
-#     addi $t3, $a0, 131072 # max
-
-#     loopClearBackground: 
-#         beq $t2, $t3, exitClearScreen
-#         sw $0, ($t2) # actually draws the fucking pixel at t2
-#         addi $t2, $t2, 4
-#         j loopClearBackground
         
 checkInput:
 
-    #addi $a0, $a0, 1
-	#jal pause
-
     lw $a0, characterX
 	lw $a1, characterY
-	# jal convertCoordToAddress
-    # add $a2, $v0, $zero 
 
     li $t0, 0xffff0000
     lw $t1, ($t0)
     andi $t1, $t1, 0x0001
 	beqz $t1, selectDrawDirection # if no new input, draw up or down
-	#lw $a1, 4($t0) #store direction based on input
-    
-checkDirection:
-    #lw $a0, Xdirection
-    lw $a1, Ydirection
+	lw $a1, 4($t0) #store direction based on input
     jal checkValidDirection
-    sw $a1, Ydirection
 
 selectDrawDirection:
     lw $t6, Ydirection
+    # check y collision with a platform or bottom here
     beq $t6, -1, decreaseYCoord
     beq $t6, 1, increaseYCoord
     j checkInput
@@ -244,7 +183,6 @@ increaseYCoord:
 # Draw function
 # a0 = address of pixel
 # a1 = colour 
-# return: null
 drawPixel:
     sw $a1, ($a0)   # fills pixel with colour
     jr $ra          # returns nothing
@@ -254,7 +192,6 @@ drawPixel:
 # Convert coordinate to address
 # a0 = x coord
 # a1 = y coord
-# return: null
 convertCoordToAddress:
 	lw $v0, screenWidth 	#Store screen width into $v0
 	mul $v0, $v0, $a1	#multiply by y position
@@ -269,32 +206,22 @@ convertCoordToAddress:
 #########################################################
 # checks direction of character
 # a0 = current X direction
-# a1 = current Y direction
 # a2 = input
 # a3 = coordinates of direction change if acceptable
 checkValidDirection:
-    #beq $a0, $a2, sameDirection
-    beq $a0, 106, validDirection
-    beq $a0, 107, validDirection
+    beq $a1, 106, moveCharacterLeft
+    beq $a1, 107, moveCharacterRight
     j exitCheckValidDirection
 
-# sameDirection:
-#     li $v0, 1
-#     j exitCheckValidDirection
-
-validDirection:
+moveCharacterLeft:
     li $v0, 1
-    beq $a2, 106, storeLeftDirection
-    beq $a2, 107, storeRightDirection
-    j exitCheckValidDirection
-
-storeLeftDirection:
     lw $t0, characterX
     subi $t0, $t0, 1
     sw $t0, characterX
     j exitCheckValidDirection
 
-storeRightDirection:
+moveCharacterRight:
+    li $v0, 1
     lw $t0, characterX
     addi $t0, $t0, 1
     sw $t0, characterX
@@ -356,7 +283,7 @@ exitCheckValidDirection:
 # Pauses game
 # a0 = amount to pause
 # return: null
-pause:
-    li $v0, 32 # terminate the program gracefully
-    syscall
-    jr $ra
+# pause:
+#     li $v0, 32 # terminate the program gracefully
+#     syscall
+#     jr $ra
