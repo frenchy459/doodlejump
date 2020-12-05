@@ -54,6 +54,7 @@
     characterY:     .word 2
     jumpHeight:     .word 6
     jumpCounter:    .word 0
+    highestBottomOfJump:    .word 20
 
     # Platforms
     platformColour:         .word 0xffffff
@@ -357,6 +358,9 @@ decreaseYCoord: # character is jumping
     lw $t1, jumpHeight
     addi $t0, $t0, 1
     sw $t0, jumpCounter
+    
+    beq $t0, 1, setLowestPoint
+continueDecreaseYCoord:
     bge $t0, $t1, changeDirectionToFalling
 
     # changes Ydirection to -1 for jumping
@@ -367,10 +371,46 @@ decreaseYCoord: # character is jumping
     lw $a0, characterY
     subi $a0, $a0, 1
     sw $a0, characterY
-
-    # move platforms down
-
+ 
     j main
+
+setLowestPoint:
+    lw $t9, highestBottomOfJump
+    lw $t8, characterY
+
+    # bottom of jump is below lowest point then don't move platforms
+    # bgt $t8, $t9 continueDecreaseYCoord 
+    bgt $t8, $t9 continueDecreaseYCoord
+
+    # bottom of jump is above lowest point so move platforms down
+    la $t7, platformAddresses
+
+    move $t0, $0
+    addi $t1, $t0, 12 # 3 loops
+
+loopMovePlatformsDown:
+    bge $t0, $t1, main
+
+    # erasing the platform
+    lw $t8, backgroundColour # sets t8 to background colour
+    move $t5, $0 # counter for erasing platform to 0
+    addi $t4, $0, 24 # 6 loops
+loopErasingPlatform:
+    lw $t6, 0($t7)
+    add $t6, $t6, $t5
+    sw $t8, 0($t6)
+    addi $t5, $t5, 4 # add 4 to counter
+
+    blt $t5, $t4, loopErasingPlatform # t5 < t4, keep erasing
+    
+    lw $t6, 0($t7)
+    addi $t6, $t6, 128
+    sw $t6, 0($t7)
+
+    addi $t7, $t7, 4
+    addi $t0, $t0, 4
+
+    j loopMovePlatformsDown
 
 changeDirectionToFalling:
 
