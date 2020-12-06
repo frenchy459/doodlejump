@@ -383,6 +383,8 @@ jumping:
     ble $t3, $t4, movePlatformsDown
 
 continueJumping:
+    lw $t0, jumpCounter
+    lw $t1, jumpHeight
     bge $t0, $t1, changeDirectionToFalling
 
     # changes Ydirection to -1 for jumping
