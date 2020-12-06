@@ -30,12 +30,11 @@
     # Screen
     screenWidth:    .word 32
     screenHeight:   .word 32
-    buffer:         .word 10:1024
+    # buffer:         .word 10:2048
 
     # Colours
     characterColour:    .word  0x0066cc # blue
     backgroundColour:   .word  0x000000 # black
-    # backgroundColour:   .word  0xcc6611 # orange
 
     # Score variables
     score:      .word 0
@@ -52,9 +51,9 @@
     # -1 for jumping
     characterX:     .word 14
     characterY:     .word 2
-    jumpHeight:     .word 6
+    jumpHeight:     .word 15
     jumpCounter:    .word 0
-    highestBottomOfJump:    .word 20
+    bottomJumpHeight:   .word 20
 
     # Platforms
     platformColour:         .word 0xffffff
@@ -62,29 +61,48 @@
     
 .text
 
+# initalizeBuffer:
+#     la $t9, buffer
+#     move $t0, $0 # t0 = loop counter
+#     addi $t1, $0, 8192 # t1 = 1024 * 4 = 4096, 1024 loops
+
+# initalizeBufferLoop:
+#     bge $t0, $t1, main
+
+#     add $t2, $t9, $t0 # t2 holds address(buffer[i])
+#     add $t3, $gp, $t0
+#     sw $t3, 0($t2)  # save pixel's memory address at buffer[i]
+
+#     addi $t0, $t0, 8
+
+#     j initalizeBufferLoop
+
 main: 
     
     li $v0, 32
     addi $a0, $0, 100
     syscall
 
-    # lw $a0, screenWidth
-    # lw $a1, backgroundColour
-    # mul $a2, $a0, 32 # total number of pixels on screen 
-    # mul $a2, $a2, 4
-    # add $a2, $a2, $gp # add display address
-    # add $a0, $gp, $0 # loop counter
+#     la $t9, buffer
+#     move $t0, $0 # t0 = loop counter
+#     addi $t1, $0, 8192 # t1 = 1024 * 4 = 4096, 1024 loops
 
-    # lw $t0, platformColour
+# drawBuffer:
+#     bge $t0, $t1, clearRegisters
 
-# fillLoop:
-#     beq $a0, $a2, clearRegisters
-#     lw $t1, 0($a0) # loads colour at a0 into t1
-# continueFillLoop:
-#     sw $a1, 0($a0) # colours pixel
-#     addi $a0, $a0, 4 # increase counter
-#     j fillLoop
+#     add $t2, $t9, $t0
+#     lw $a0, 0($t2) 
 
+#     addi $t0, $t0, 4
+
+#     add $t2, $t9, $t0
+#     lw $a1, 0($t2) 
+
+#     addi $t0, $t0, 4
+
+#     jal drawPixel
+
+#     j drawBuffer
 
 
 clearRegisters:
@@ -333,8 +351,6 @@ generatePlatformCoord:
 
         
 checkInput:
-
-    # jal pause
     
     lw $a0, characterX
 	lw $a1, characterY
@@ -344,23 +360,29 @@ checkInput:
     andi $t1, $t1, 0x0001
 	beq $t1, $0, selectDrawDirection # if no new input, draw up or down
 	lw $a1, 4($t0) #store direction based on input
-    jal checkValidDirection # checks for keyboard input
+    jal checkValidDirection # checks for keyboard input (move left/right)
 
 selectDrawDirection:
     lw $t6, Ydirection
-    beq $t6, -1, decreaseYCoord
-    beq $t6, 1, increaseYCoord
+
+    beq $t6, 1, falling # fall
+    beq $t6, -1, jumping # jump
     j checkInput
 
 
-decreaseYCoord: # character is jumping
+jumping:
     lw $t0, jumpCounter
     lw $t1, jumpHeight
     addi $t0, $t0, 1
     sw $t0, jumpCounter
-    
-    beq $t0, 1, setLowestPoint
-continueDecreaseYCoord:
+
+    bne $t0, 1, continueJumping
+
+    lw $t3, characterY
+    lw $t4, bottomJumpHeight
+    ble $t3, $t4, movePlatformsDown
+
+continueJumping:
     bge $t0, $t1, changeDirectionToFalling
 
     # changes Ydirection to -1 for jumping
@@ -371,17 +393,56 @@ continueDecreaseYCoord:
     lw $a0, characterY
     subi $a0, $a0, 1
     sw $a0, characterY
- 
+
     j main
 
-setLowestPoint:
-    lw $t9, highestBottomOfJump
-    lw $t8, characterY
+changeDirectionToFalling:
 
-    # bottom of jump is below lowest point then don't move platforms
-    # bgt $t8, $t9 continueDecreaseYCoord 
-    bgt $t8, $t9 continueDecreaseYCoord
+    # reset jump counter back to 0
+    move $t0, $0
+    sw $t0, jumpCounter
+    
+    # changes Ydirection to 1 for falling
+    lw $t3, Ydirection 
+    addi $t3, $0, 1
+    sw $t3, Ydirection
 
+    j main
+
+falling: # character is falling
+
+    # check collision
+    lw $a0, characterX # a0 = x coord
+    lw $a1, characterY # a1 = y coord
+
+    # add 1 to a1 serves two purposes
+    # increase y coord of character if it keeps falling
+    # checks if the pixel below the bottom pixel of character is platform
+    addi $a1, $a1, 1 # a1 = bottom row of character
+
+    jal convertCoordToAddress 
+    move $a0, $v0 # a0 = memory address of bottom left pixel of character
+    jal platformCollision
+   
+    sw $a1, characterY
+    j main
+    
+
+platformCollision:
+
+    lw $t1, platformColour
+
+    addi $t9, $a0, 128 # t9 is now memory address below bottom left pixel of character
+    lw $t0, 0($t9) # t0 is colour of pixel
+    beq $t0, $t1, jumping # if pixel below is white, go to jump
+
+    addi $t9, $t9, 4 # t9 is memory address below bottom right pixel of character
+    lw $t0, 0($t9) # t0 is colour of pixel
+    beq $t0, $t1, jumping # if pixel below is white, go to jump
+
+    jr $ra
+
+movePlatformsDown:
     # bottom of jump is above lowest point so move platforms down
     la $t7, platformAddresses
 
@@ -389,7 +450,7 @@ setLowestPoint:
     addi $t1, $t0, 12 # 3 loops
 
 loopMovePlatformsDown:
-    bge $t0, $t1, main
+    bge $t0, $t1, continueJumping
 
     # erasing the platform
     lw $t8, backgroundColour # sets t8 to background colour
@@ -411,48 +472,6 @@ loopErasingPlatform:
     addi $t0, $t0, 4
 
     j loopMovePlatformsDown
-
-changeDirectionToFalling:
-
-    # reset jump counter back to 0
-    move $t0, $0
-    sw $t0, jumpCounter
-    
-    # changes Ydirection to 1 for falling
-    lw $t3, Ydirection 
-    addi $t3, $0, 1
-    sw $t3, Ydirection
-
-    j main
-
-increaseYCoord: # character is falling
-
-    # check collision
-    lw $a0, characterX # a0 = x coord
-    lw $a1, characterY # a1 = y coord
-    addi $a1, $a1, 1 # a1 = bottom row of character
-    jal convertCoordToAddress 
-    move $a0, $v0 # a0 = memory address of bottom left pixel of character
-    jal platformCollision
-   
-    sw $a1, characterY
-    j main
-    
-
-platformCollision:
-
-    lw $t1, platformColour
-
-    addi $t9, $a0, 128 # t9 is now memory address below bottom left pixel of character
-    lw $t0, 0($t9) # t0 is colour of pixel
-    beq $t0, $t1, decreaseYCoord # if pixel below is white
-
-    addi $t9, $t9, 4 # t9 is memory address below bottom right pixel of character
-    lw $t0, 0($t9) # t0 is colour of pixel
-    beq $t0, $t1, decreaseYCoord # if pixel below is white
-
-    jr $ra
-
 
 #########################################################
 # Draw function
