@@ -308,7 +308,7 @@ loopOverPlatformAddresses:
     lw $t3, 0($t2) # t3 = platformAddress[i]
     blt $t3, $gp, generatePlatformCoord # address < global pointer
 
-    add $t4, $gp, 65512 # t4 = $gp + 256^2 - 4*6
+    add $t4, $gp, 4072 # t4 = $gp + 4(32^2) - 4*6
     bgt $t3, $t4, generatePlatformCoord # address > global pointer + 256^2 - 4*6
 
 doneGeneratingPlatformCoord:
@@ -381,6 +381,10 @@ jumping:
     ble $t3, $t4, movePlatformsDown
 
     bne $t0, 1, continueJumping
+
+    # lw $t3, characterY
+    # lw $t4, bottomJumpHeight
+    # ble $t3, $t4, movePlatformsDown
 
 continueJumping:
     lw $t0, jumpCounter
