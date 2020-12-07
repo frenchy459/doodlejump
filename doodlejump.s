@@ -51,7 +51,7 @@
     # -1 for jumping
     characterX:     .word 14
     characterY:     .word 2
-    jumpHeight:     .word 15
+    jumpHeight:     .word 10
     jumpCounter:    .word 0
     bottomJumpHeight:   .word 20
 
@@ -376,11 +376,11 @@ jumping:
     addi $t0, $t0, 1
     sw $t0, jumpCounter
 
-    bne $t0, 1, continueJumping
-
     lw $t3, characterY
     lw $t4, bottomJumpHeight
     ble $t3, $t4, movePlatformsDown
+
+    bne $t0, 1, continueJumping
 
 continueJumping:
     lw $t0, jumpCounter
