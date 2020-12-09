@@ -30,7 +30,7 @@
     # Screen
     screenWidth:    .word 32
     screenHeight:   .word 32
-    # buffer:         .word 10:2048
+    buffer:         .word 0:2048
 
     # Colours
     characterColour:    .word  0x0066cc # blue
@@ -51,31 +51,116 @@
     # -1 for jumping
     characterX:     .word 14
     characterY:     .word 2
-    jumpHeight:     .word 10
+    jumpHeight:     .word 8
     jumpCounter:    .word 0
     bottomJumpHeight:   .word 20
 
     # Platforms
     platformColour:         .word 0xffffff
-    platformAddresses:      .word 3:3 # array of 3 words, all 3
+    platformAddresses:      .word 3:6 # array of 3 words, all 3
+    numPlatforms:           .word 6
     
 .text
 
-# initalizeBuffer:
-#     la $t9, buffer
-#     move $t0, $0 # t0 = loop counter
-#     addi $t1, $0, 8192 # t1 = 1024 * 4 = 4096, 1024 loops
+initalizeBuffer:
+    la $t9, buffer
+    move $t0, $0 # t0 = loop counter
+    addi $t1, $0, 8192 # t1 = 1024 * 4 = 4096, 1024 loops
 
-# initalizeBufferLoop:
-#     bge $t0, $t1, main
+    move $t3, $gp # t3 = gp
 
-#     add $t2, $t9, $t0 # t2 holds address(buffer[i])
-#     add $t3, $gp, $t0
-#     sw $t3, 0($t2)  # save pixel's memory address at buffer[i]
+initalizeBufferLoop:
+    bge $t0, $t1, restart
 
-#     addi $t0, $t0, 8
+    add $t2, $t9, $t0 # t2 = address(buffer[i])
+    addi $t3, $t3, 4
+    sw $t3, 0($t2)  # save pixel's memory address at buffer[i]
 
-#     j initalizeBufferLoop
+    addi $t0, $t0, 8 # t0 += 8
+
+    j initalizeBufferLoop
+
+restart:
+    lw $t0, characterX
+    addi $t0, $0, 14
+    sw $t0, characterX
+
+    lw $t0, characterY
+    addi $t0, $0, 2
+    sw $t0, characterY
+
+    sw $0, jumpCounter
+
+    sw $0, score
+
+    lw $t0, characterX
+    addi $t0, $0, 14
+    sw $t0, characterX
+
+    
+    move $t0, $0 # t0 is loop counter
+    lw $t1, numPlatforms
+    addi $t2, $0, 4
+    mul $t1, $t1, $t2 # t1 = numPlatforms * 4
+
+loopOverInitalPlatforms:
+    bge $t0, $t1, main # when counter >= numPlatforms * 4 , jump to checkInput
+
+    la $t9, platformAddresses
+
+    add $t2, $t9, $t0 # t2 holds address(platformAddress[i])
+    lw $t3, 0($t2) # t3 = platformAddress[i]
+    blt $t3, $gp, generateInitalPlatformCoord # address < global pointer
+
+    add $t4, $gp, 4072 # t4 = $gp + 4(32^2) - 4*6
+    bgt $t3, $t4, generateInitalPlatformCoord # address > global pointer + 256^2 - 4*6
+
+doneGeneratingInitialPlatformCoord:
+
+    # addi $t0, $t0, 4 # add 4 to counter for addresses 
+    
+    move $t5, $0 # counter for drawing platform, t5 = 0
+    addi $t6, $0, 24 # max = 24, 6 loops
+
+drawInitalPlatform:
+
+    lw $a2, platformColour # sets a1 to platform colour
+
+    jal drawToBuffer
+
+    addi $a0, $a0, 1
+    # lw $a0, 0($t2) # sets a0 to address of pixel 
+    # add $a0, $a0, $t5
+    # jal drawPixel # draws pixel
+    addi $t5, $t5, 4 # add 4 to drawing platform counter
+    
+    blt $t5, $t6, drawInitalPlatform # if t5 < t6, keep drawing platform
+
+    bge $t5, $t6, loopOverInitalPlatforms # if t5 >= t6, draw a new platform
+     
+    
+generateInitalPlatformCoord:
+    li $v0, 42
+    move $a0, $0
+    addi $a1, $0, 24
+    syscall
+    move $t7, $a0 # t7 temp stores x coordinate
+
+    move $a0, $0
+    addi $a1, $0, 5
+    syscall
+    add $t8, $a0, $t0  # t8 stores y coordinate
+
+    move $a0, $t7 # moves x coord into a0
+    move $a1, $t8 # moves y coord into a1 
+    jal convertCoordToAddress # returns v0 which contains new address
+    
+    sw $v0, 0($t2) # saves pixel address to platformAddress[i]
+ 
+    addi $t0, $t0, 4 # add 4 to counter for addresses 
+
+
+    j doneGeneratingInitialPlatformCoord
 
 main: 
     
@@ -83,26 +168,28 @@ main:
     addi $a0, $0, 100
     syscall
 
-#     la $t9, buffer
-#     move $t0, $0 # t0 = loop counter
-#     addi $t1, $0, 8192 # t1 = 1024 * 4 = 4096, 1024 loops
+    
+    move $t0, $0 # t0 = loop counter
+    addi $t1, $0, 8192 # t1 = 2048 * 4 = 8192, 1024 loops
 
-# drawBuffer:
-#     bge $t0, $t1, clearRegisters
+drawBuffer:
+    bge $t0, $t1, clearRegisters # when t0 >= t1, go to clearRegisters
 
-#     add $t2, $t9, $t0
-#     lw $a0, 0($t2) 
+    la $t9, buffer
 
-#     addi $t0, $t0, 4
+    add $t2, $t9, $t0 # t2 = address(buffer[i]) (cotains address of pixel)
+    lw $a0, 0($t2) # a0 = buffer[i] (address of pixel)
 
-#     add $t2, $t9, $t0
-#     lw $a1, 0($t2) 
+    addi $t0, $t0, 4 
 
-#     addi $t0, $t0, 4
+    add $t2, $t9, $t0 # t2 = address(buffer[i + 1]) (contains colour)
+    lw $a1, 0($t2) # a1 = buffer[i + 1] (colour of pixel)
 
-#     jal drawPixel
+    jal drawPixel
 
-#     j drawBuffer
+    addi $t0, $t0, 4
+
+    j drawBuffer
 
 
 clearRegisters:
@@ -300,10 +387,12 @@ drawCharacter:
 CheckPlatformAddresses:
     la $t9, platformAddresses
     move $t0, $0 # t0 is loop counter
-    addi $t1, $0, 12 # t1 = 12, so 3 loops
+    lw $t1, numPlatforms
+    addi $t2, $0, 4
+    mul $t1, $t1, $t2 # t1 = numPlatforms * 4
 
 loopOverPlatformAddresses:
-    bge $t0, $t1, checkInput # when counter >= 12 (3 loops) , jump to checkInput
+    bge $t0, $t1, checkInput # when counter >= numPlatforms * 4 , jump to checkInput
     add $t2, $t9, $t0 # t2 holds address(platformAddress[i])
     lw $t3, 0($t2) # t3 = platformAddress[i]
     blt $t3, $gp, generatePlatformCoord # address < global pointer
@@ -335,14 +424,15 @@ generatePlatformCoord:
     addi $a0, $0, 0
     addi $a1, $0, 24
     syscall
-    move $t7, $a0 # t7 temp stores y coordinate
+    move $t7, $a0 # t7 temp stores x coordinate
 
-    li $a0, 0
-    syscall
-    move $t8, $a0  # t8 stores x coordinate
+    # li $a0, 0
+    # addi $a1, $0, 24 # NEW
+    # syscall
+    # move $t8, $a0  # t8 stores x coordinate
 
     move $a0, $t7 # moves x coord into a0
-    move $a1, $t8 # moves y coord into a1 
+    move $a1, $0 # moves y coord into a1 
     jal convertCoordToAddress # returns v0 which contains new address
 
     sw $v0, 0($t2)
@@ -379,12 +469,6 @@ jumping:
     lw $t3, characterY
     lw $t4, bottomJumpHeight
     ble $t3, $t4, movePlatformsDown
-
-    bne $t0, 1, continueJumping
-
-    # lw $t3, characterY
-    # lw $t4, bottomJumpHeight
-    # ble $t3, $t4, movePlatformsDown
 
 continueJumping:
     lw $t0, jumpCounter
@@ -453,7 +537,9 @@ movePlatformsDown:
     la $t7, platformAddresses
 
     move $t0, $0
-    addi $t1, $t0, 12 # 3 loops
+    lw $t1, numPlatforms
+    addi $t2, $0, 4
+    mul $t1, $t1, $t2 # t1 = numPlatforms * 4
 
 loopMovePlatformsDown:
     bge $t0, $t1, continueJumping
@@ -489,9 +575,34 @@ drawPixel:
     
 
 #########################################################
+# Draws to buffer
+# a0 = x coord
+# a1 = y coord
+# a2 = colour
+drawToBuffer:
+    la $t9, buffer # t9 = address(buffer[0])
+    lw $t8, screenWidth 	#Store screen width into $v0
+	mul $t8, $t8, $a1	#multiply by y positionW
+	add $t8, $t8, $a0	#add the x position
+	# mul $t0, $t0, 4		#multiply by 4
+    mul $t8, $t8, 8		#multiply by 8
+
+    add $t9, $t9, $t8 # t9 = address in buffer for pixel at (x, y)
+    # add $t0, $t0, $gp # v0 = gp address of pixel
+    # sw $t0, 0($t9)
+
+    addi $t9, $t9, 4 # goes to byte next to address in buffer for pixel at (x, y)
+
+    sw $a2, 0($t9) # saves colour in byte next to address in buffer
+
+	add $v0, $v0, $gp	#add global pointerfrom bitmap display
+	jr $ra			# return $v0
+
+#########################################################
 # Convert coordinate to address
 # a0 = x coord
 # a1 = y coord
+# v0 = address
 convertCoordToAddress:
 	lw $v0, screenWidth 	#Store screen width into $v0
 	mul $v0, $v0, $a1	#multiply by y position
@@ -502,12 +613,29 @@ convertCoordToAddress:
 
 
 #########################################################
+# Convert address to coordinate
+# a0 = address
+# v0 = x coord
+# v1 = y coord
+convertAddressToCoord:
+	lw $v0, screenWidth 	#Store screen width into $v0
+
+    sub $a0, $a0, $gp   # subtract gp
+    div $a0, $v0        # divide a0 by 32 (v0)
+
+    mfhi $v0 # move remainder into v0
+    mflo $v1 # move quotient into v1
+
+	jr $ra			# return $v0
+
+
+#########################################################
 # checks direction of character
 # a0 = current X direction
 # a2 = input
 # a3 = coordinates of direction change if acceptable
 checkValidDirection:
-    # beq $a1, 115, 
+    beq $a1, 115, restart
     beq $a1, 106, moveCharacterLeft
     beq $a1, 107, moveCharacterRight
     j exitCheckValidDirection
