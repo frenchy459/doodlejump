@@ -24,8 +24,12 @@
 # - Before running program please restart MARS
 # - The Bitmap Display in MARS is EXTREMELY BUGGY, the restart button (the s key)
 #   and the replay button the game over screen should work. If you get a black screen
-#   when trying to restart the game: recompile and run again. Also, don't restart
-#   the game using the s key too quickly.
+#   or the doodler doesn't load when trying to restart the game: recompile and run again.
+#   Also, don't restart the game using the s key too quickly.
+# - Also because MARS is very buggy, the "You died" text when the gamer terminates
+#   sometimes is displayed properly, or as "You died1000" or "1000". I have no idea
+#   why this occurs and no idea how to fix it, since usually the "Replay" text
+#   that follows the "You died" displays properly.
 #####################################################################
 .data
 
